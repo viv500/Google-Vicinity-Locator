@@ -1,3 +1,5 @@
+import tkinter as tk
+from tkinter import messagebox, filedialog
 import requests
 from dotenv import load_dotenv
 import os
@@ -22,7 +24,7 @@ def get_nearby_places(api_key, place_id, radius, keyword, excel_sheet):
     place_details = place_details_response.json()
     
     if 'result' not in place_details or 'geometry' not in place_details['result']:
-        print("Error: Unable to fetch place details or invalid Place ID.")
+        messagebox.showerror("API Error", "Unable to fetch place details or invalid Place ID.")
         return
     
     # Getting the latitude and longitude
@@ -47,7 +49,7 @@ def get_nearby_places(api_key, place_id, radius, keyword, excel_sheet):
     
     # Check if the response contains results
     if 'results' not in nearby_places:
-        print("Error: No results found or unable to fetch nearby places.")
+        messagebox.showerror("API Error", "No results found or unable to fetch nearby places.")
         return
     
     # Collect information about each place
@@ -67,18 +69,77 @@ def get_nearby_places(api_key, place_id, radius, keyword, excel_sheet):
             'Rating': rating
         })
     
-    # generating a dataframe
+    # Generating a DataFrame
     df = pd.DataFrame(data)
     
     # Save the DataFrame to an Excel file
-    df.to_excel(excel_sheet, index=False)
-    print(f"Data has been written to {excel_sheet}")
+    try:
+        df.to_excel(excel_sheet, index=False)
+    except Exception as e:
+        messagebox.showerror("File Error", f"Failed to save the Excel file: {e}")
+        return
+    
+    return excel_sheet
 
-# Example usage
-place_id = 'ChIJUYmgCSSuEmsREh0wG5hVCQk'  # Replace with a valid Place ID
-radius = 20  # Radius in meters
-api_key = os.getenv('GOOGLE_API_KEY')
-excel_sheet = 'nearby_places.xlsx'
+def generate_report():
+    api_key = os.getenv('GOOGLE_API_KEY')
+    place_id = place_id_entry.get().strip()
+    radius_str = radius_entry.get().strip()
+    keyword = keyword_entry.get().strip()
+    
+    if not place_id:
+        messagebox.showerror("Input Error", "Please fill in the Place ID.")
+        return
+    
+    if not radius_str:
+        messagebox.showerror("Input Error", "Please fill in the Radius.")
+        return
+    
+    try:
+        radius = int(radius_str)
+    except ValueError:
+        messagebox.showerror("Input Error", "Radius must be a number.")
+        return
+    
+    # Get the user's Documents directory
+    documents_dir = os.path.expanduser("~/Documents")
+    
+    # Open a file dialog to select the save location and filename, defaulting to the Documents directory
+    file_path = filedialog.asksaveasfilename(
+        initialdir=documents_dir,
+        defaultextension=".xlsx",
+        filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+        title="Save Excel File As"
+    )
+    
+    if not file_path:
+        return  # User cancelled the file dialog
+    
+    # Call the function to generate the report
+    result_file = get_nearby_places(api_key, place_id, radius, keyword, file_path)
+    
+    if result_file:
+        messagebox.showinfo("Success", f"Data has been written to {result_file}")
 
-# Call the function
-get_nearby_places(api_key, place_id, radius, '', excel_sheet)
+# Create the main window
+root = tk.Tk()
+root.title("Nearby Places Finder")
+
+# Create and place widgets
+tk.Label(root, text="Place ID:").grid(row=0, column=0, padx=10, pady=10)
+place_id_entry = tk.Entry(root)
+place_id_entry.grid(row=0, column=1, padx=10, pady=10)
+
+tk.Label(root, text="Radius (meters):").grid(row=1, column=0, padx=10, pady=10)
+radius_entry = tk.Entry(root)
+radius_entry.grid(row=1, column=1, padx=10, pady=10)
+
+tk.Label(root, text="Keyword (optional):").grid(row=2, column=0, padx=10, pady=10)
+keyword_entry = tk.Entry(root)
+keyword_entry.grid(row=2, column=1, padx=10, pady=10)
+
+generate_button = tk.Button(root, text="Generate Report", command=generate_report)
+generate_button.grid(row=4, column=0, columnspan=2, pady=20)
+
+# Run the application
+root.mainloop()
