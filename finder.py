@@ -4,6 +4,7 @@ import requests
 from dotenv import load_dotenv
 import os
 import pandas as pd
+import time  # Import the time module for adding delay
 
 # Load the environment variables from the .env file
 load_dotenv()
@@ -43,31 +44,42 @@ def get_nearby_places(api_key, place_id, radius, keyword, excel_sheet):
         'keyword': keyword if keyword and keyword != 'None' else ''
     }
     
-    # Make the request to Nearby Search API
-    nearby_search_response = requests.get(nearby_search_endpoint, params=nearby_search_params)
-    nearby_places = nearby_search_response.json()
-    
-    # Check if the response contains results
-    if 'results' not in nearby_places:
-        messagebox.showerror("API Error", "No results found or unable to fetch nearby places.")
-        return
-    
-    # Collect information about each place
     data = []
-    for place in nearby_places['results']:
-        name = place.get('name', 'N/A')
-        address = place.get('vicinity', 'N/A')
-        place_id = place.get('place_id', 'N/A')
-        types = place.get('types', [])
-        rating = place.get('rating', 'N/A')
+    next_page_token = None
+    
+    while True:
+        if next_page_token:
+            nearby_search_params['pagetoken'] = next_page_token
+            time.sleep(2)  # Add delay to handle the token's validity time
         
-        data.append({
-            'Name': name,
-            'Address': address,
-            'Place ID': place_id,
-            'Types': ', '.join(types),
-            'Rating': rating
-        })
+        # Make the request to Nearby Search API
+        nearby_search_response = requests.get(nearby_search_endpoint, params=nearby_search_params)
+        nearby_places = nearby_search_response.json()
+        
+        # Check if the response contains results
+        if 'results' not in nearby_places:
+            break
+        
+        # Collect information about each place
+        for place in nearby_places['results']:
+            name = place.get('name', 'N/A')
+            address = place.get('vicinity', 'N/A')
+            place_id = place.get('place_id', 'N/A')
+            types = place.get('types', [])
+            rating = place.get('rating', 'N/A')
+            
+            data.append({
+                'Name': name,
+                'Address': address,
+                'Place ID': place_id,
+                'Types': ', '.join(types),
+                'Rating': rating
+            })
+        
+        # Check if there's a next page token
+        next_page_token = nearby_places.get('next_page_token')
+        if not next_page_token:
+            break
     
     # Generating a DataFrame
     df = pd.DataFrame(data)
